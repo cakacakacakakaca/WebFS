@@ -99,6 +99,41 @@ class AppUI(tk.Tk):
 
         self.root_var = tk.StringVar()
         self.port_var = tk.StringVar(value="8000")
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
 
         self.allow_ipv4 = tk.BooleanVar(value=True)
         self.allow_ipv6 = tk.BooleanVar(value=False)
@@ -193,6 +228,8 @@ class AppUI(tk.Tk):
         row2.pack(fill="x", pady=6)
         ttk.Label(row2, text="端口：").pack(side="left")
         ttk.Entry(row2, textvariable=self.port_var, width=10).pack(side="left", padx=8)
+        ttk.Label(row2, text="账户/网络权限请在“账户与权限”页配置", foreground="#666").pack(side="left", padx=8)
+        ttk.Label(row2, text="（IPv4/IPv6 开关在下方“账户与权限管理”中设置）", foreground="#666").pack(side="left", padx=8)
 
         row3 = ttk.Frame(lf)
         row3.pack(fill="x", pady=(8, 6))
@@ -200,6 +237,22 @@ class AppUI(tk.Tk):
         self.btn_stop = ttk.Button(row3, text="停止服务器", command=self.stop_server)
         self.btn_start.pack(side="left")
         self.btn_stop.pack(side="left", padx=10)
+
+        sec = ttk.Labelframe(frm, text="账户与权限管理")
+        sec.pack(fill="x", pady=(12, 0))
+        net = ttk.Frame(sec)
+        net.pack(fill="x", pady=4)
+        ttk.Label(net, text="网络访问：").pack(side="left")
+        ttk.Checkbutton(net, text="允许 IPv4", variable=self.allow_ipv4).pack(side="left", padx=6)
+        ttk.Checkbutton(net, text="允许 IPv6", variable=self.allow_ipv6).pack(side="left", padx=6)
+
+        acc = ttk.Frame(sec)
+        acc.pack(fill="x", pady=4)
+        ttk.Button(acc, text="管理员账户…", command=self.manage_admins).pack(side="left")
+        ttk.Button(acc, text="普通账户…", command=self.manage_users).pack(side="left", padx=8)
+        ttk.Label(acc, text="游客模式：").pack(side="left", padx=(20,6))
+        ttk.Combobox(acc, textvariable=self.guest_mode_var, state="readonly", width=16,
+                     values=["debug", "browse_only", "disabled"]).pack(side="left")
 
         tips = ttk.Labelframe(frm, text="提示")
         tips.pack(fill="x", pady=(12, 0))
@@ -836,6 +889,34 @@ class AppUI(tk.Tk):
             pass
         self.destroy()
 
+
+    def _default_user_permissions(self):
+        return {"browse": True, "view": True, "download": False, "upload": False, "delete": False}
+
+    def manage_admins(self):
+        name = simpledialog.askstring("管理员", "用户名：")
+        if not name:
+            return
+        pwd = simpledialog.askstring("管理员", "密码：", show="*")
+        if not pwd:
+            return
+        self.admin_accounts = [a for a in self.admin_accounts if a.get("username") != name]
+        self.admin_accounts.append({"username": name, "password": pwd})
+        messagebox.showinfo("完成", "管理员账户已添加/更新。")
+
+    def manage_users(self):
+        name = simpledialog.askstring("普通账户", "用户名：")
+        if not name:
+            return
+        pwd = simpledialog.askstring("普通账户", "密码：", show="*")
+        if not pwd:
+            return
+        perms = self._default_user_permissions()
+        for k, label in [("download", "允许下载"), ("upload", "允许上传"), ("delete", "允许删除")]:
+            perms[k] = messagebox.askyesno("普通账户权限", f"{label}？")
+        self.user_accounts = [u for u in self.user_accounts if u.get("username") != name]
+        self.user_accounts.append({"username": name, "password": pwd, "permissions": perms})
+        messagebox.showinfo("完成", "普通账户已添加/更新。")
 
 if __name__ == "__main__":
     AppUI().mainloop()
