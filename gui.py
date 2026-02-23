@@ -128,6 +128,12 @@ class AppUI(tk.Tk):
         self.admin_accounts: list[dict] = []
         self.user_accounts: list[dict] = []
 
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
         self.status_var = tk.StringVar(value="已停止")
         self.url_var = tk.StringVar(value="")
         self.local_url_var = tk.StringVar(value="")
@@ -343,6 +349,10 @@ class AppUI(tk.Tk):
         self.acc_log_tree.pack(fill="both", expand=True)
 
     def _build_logs_tab(self):
+        # 防止重复构建导致日志工具栏/表格重复出现
+        for child in self.tab_logs.winfo_children():
+            child.destroy()
+
         frm = ttk.Frame(self.tab_logs)
         frm.pack(fill="both", expand=True, padx=12, pady=12)
 
@@ -359,6 +369,15 @@ class AppUI(tk.Tk):
         ttk.Label(row_filters, text="关键字(IP/用户/路径)：").pack(side="left")
         ent = ttk.Entry(row_filters, textvariable=self.filter_text, width=36)
         ent.pack(side="left", padx=6, fill="x", expand=True)
+        ent.bind("<KeyRelease>", lambda e: self.rebuild_tree())
+        ttk.Checkbutton(row_filters, text="自动滚动", variable=self.autoscroll).pack(side="left", padx=10)
+
+        row_actions = ttk.Frame(fbar)
+        row_actions.pack(fill="x", pady=(6, 0))
+        ttk.Button(row_actions, text="清空视图", command=self.clear_view).pack(side="left")
+        ttk.Button(row_actions, text="导出日志…", command=self.export_log).pack(side="left", padx=8)
+        ttk.Button(row_actions, text="备份日志到目录…", command=self.backup_logs).pack(side="left", padx=8)
+        ttk.Button(row_actions, text="清空所有日志", command=self.clear_all_logs).pack(side="left", padx=8)
         ent.bind("<KeyRelease>", lambda e: self.rebuild_tree())
         ttk.Checkbutton(row_filters, text="自动滚动", variable=self.autoscroll).pack(side="left", padx=10)
 
