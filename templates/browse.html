@@ -17,6 +17,7 @@
   </div>
 </div>
 
+{% if can_upload %}
 <div class="panel" style="margin-top:12px;">
   <div class="panel__title">
     <div>
@@ -29,6 +30,7 @@
     <button class="btn" type="submit">上传</button>
   </form>
 </div>
+{% endif %}
 
 {% if image_mode %}
   <div class="gallery">
@@ -82,7 +84,14 @@
               <a class="btn btn--small" href="/browse/{{ e.rel_path|url_path }}">打开</a>
             {% else %}
               <a class="btn btn--small" href="/open/{{ e.rel_path|url_path }}">预览</a>
-              <a class="btn btn--small btn--ghost" href="/raw/{{ e.rel_path|url_path }}?download=1">下载</a>
+              {% if can_download %}
+                <a class="btn btn--small btn--ghost" href="/raw/{{ e.rel_path|url_path }}?download=1">下载</a>
+              {% endif %}
+              {% if can_delete %}
+                <form method="post" action="/delete/{{ e.rel_path|url_path }}" onsubmit="return confirm('确认删除该文件？')">
+                  <button class="btn btn--small" type="submit">删除</button>
+                </form>
+              {% endif %}
             {% endif %}
           </div>
         </div>
