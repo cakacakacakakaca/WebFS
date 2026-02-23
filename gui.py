@@ -9,8 +9,6 @@ import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from tkinter import filedialog, messagebox, simpledialog
-
 from tkinter import ttk
 
 import uvicorn
@@ -36,9 +34,6 @@ def get_lan_ip() -> str:
 
 
 def check_port_free(host: str, port: int) -> tuple[bool, str]:
-    """
-    预检查端口是否可绑定：避免 uvicorn 异步报错难捕获
-    """
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     sock = socket.socket(family, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -104,6 +99,12 @@ class AppUI(tk.Tk):
 
         self.root_var = tk.StringVar()
         self.port_var = tk.StringVar(value="8000")
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
         self.allow_ipv4 = tk.BooleanVar(value=True)
         self.allow_ipv6 = tk.BooleanVar(value=False)
         self.guest_mode_var = tk.StringVar(value="browse_only")
@@ -257,8 +258,8 @@ class AppUI(tk.Tk):
         tips.pack(fill="x", pady=(12, 0))
         ttk.Label(
             tips,
-            text="• 启动前请在“账户与权限”页面完成账号和游客策略配置。\n"
-            "• 手机无法访问时请检查防火墙和端口放行。",
+            text="• 手机无法访问时请检查防火墙和端口放行。\n"
+            "• 建议使用强密码并定期备份访问日志。",
             justify="left",
         ).pack(anchor="w")
 
