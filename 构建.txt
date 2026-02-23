@@ -19,6 +19,8 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 pip install pyinstaller
 
+建议：优先使用 Python 3.11 或 3.12 构建（稳定性通常优于 3.13 的早期生态）。
+
 ----------------------------------------
 二、执行打包
 ----------------------------------------
@@ -36,6 +38,7 @@ pyinstaller --noconfirm --clean WebFS.spec
 1) 直接分发 dist\WebFS.exe 给终端用户即可，无需其安装 Python。
 2) 首次启动若被 Windows SmartScreen 拦截，点击“更多信息 -> 仍要运行”。
 3) 若希望减小误报率，建议对 exe 做代码签名后再分发。
+4) 若 exe 可打开但“启动服务器”无响应，优先升级到最新代码后重打包（已加入启动诊断提示），并尝试用 Python 3.11/3.12 重新构建。
 
 ----------------------------------------
 四、回滚到一条命令方式（备选）
