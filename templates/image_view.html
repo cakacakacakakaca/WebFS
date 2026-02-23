@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>{{ filename }} - 图片查看</title>
+  <link rel="stylesheet" href="/static/app.css"/>
+  <script defer src="/static/app.js"></script>
+</head>
+
+<body class="fs-body">
+  <div class="fsviewer"
+       data-page="image"
+       data-index="{{ index }}"
+       data-images='{{ images | tojson }}'>
+
+    <!-- 顶部：只保留关闭按钮（返回普通浏览）+ 标题/计数（非操作按钮） -->
+    <header class="fsbar">
+      <a class="fsbtn fsbtn--close"
+         href="/browse/{{ folder_rel|url_path }}"
+         aria-label="关闭">✕</a>
+
+      <div class="fsmeta">
+        <div class="fsname" id="fsName">{{ filename }}</div>
+        <div class="fscount muted" id="fsCount"></div>
+      </div>
+    </header>
+
+    <!-- 画面区域：全屏独占 -->
+    <div class="fsstage" id="viewerStage">
+      <img id="viewerImg" class="fsimg"
+           src="/raw/{{ rel_path|url_path }}"
+           alt="{{ filename }}"/>
+
+      <!-- 只保留上一张/下一张操作按钮 -->
+      <button class="fsnav fsnav--prev" id="btnPrev" aria-label="上一张">‹</button>
+      <button class="fsnav fsnav--next" id="btnNext" aria-label="下一张">›</button>
+    </div>
+  </div>
+</body>
+</html>

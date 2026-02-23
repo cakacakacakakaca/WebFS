@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% set title = filename ~ " - 文件" %}
+{% block content %}
+
+<div class="panel">
+  <div class="panel__title">
+    <div>
+      <div class="h1">{{ filename }}</div>
+      <div class="muted small">类型：{{ mime }} · 大小：{{ size }} bytes</div>
+    </div>
+    <div class="panel__actions">
+      <a class="btn" href="/raw/{{ rel_path|url_path }}?download=1">下载</a>
+      <a class="btn btn--ghost" href="/raw/{{ rel_path|url_path }}">直接打开</a>
+    </div>
+  </div>
+</div>
+
+<div class="muted">
+  该文件类型不做特殊渲染。可选择下载或直接打开。
+</div>
+
+{% endblock %}

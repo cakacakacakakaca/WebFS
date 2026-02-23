@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% set title = (rel_path if rel_path else "根目录") ~ " - WebFS" %}
+{% block content %}
+
+<div class="panel">
+  <div class="panel__title">
+    <div>
+      <div class="h1">{{ rel_path if rel_path else "根目录" }}</div>
+      <div class="muted small">
+        文件数：{{ stats.total_files }}，图片：{{ stats.image_files }}，
+        图片占比：{{ (stats.image_ratio * 100) | round(0) }}%
+        {% if image_mode %}
+          · 已启用图片浏览模式
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:12px;">
+  <div class="panel__title">
+    <div>
+      <div class="h1">上传到当前目录</div>
+      <div class="muted small">选择文件后上传（会写入当前浏览的文件夹）</div>
+    </div>
+  </div>
+  <form class="upload" action="/upload/{{ rel_path|url_path }}" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" required />
+    <button class="btn" type="submit">上传</button>
+  </form>
+</div>
+
+{% if image_mode %}
+  <div class="gallery">
+    {% for e in entries %}
+      {% if not e.is_dir and e.kind == "image" %}
+        <a class="thumb" href="/open/{{ e.rel_path|url_path }}">
+          <img loading="lazy" src="/thumb/{{ e.rel_path|url_path }}?w=420&h=420" alt="{{ e.name }}"/>
+          <div class="thumb__name">{{ e.name }}</div>
+        </a>
+      {% endif %}
+      {% if e.is_dir %}
+        <a class="foldercard" href="/browse/{{ e.rel_path|url_path }}">
+          <div class="icon">📁</div>
+          <div class="foldercard__meta">
+            <div class="name">{{ e.name }}</div>
+            <div class="muted small">{{ e.mtime_str }}</div>
+          </div>
+        </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="list">
+    <div class="table">
+      <div class="row head">
+        <div class="cell name">名称</div>
+        <div class="cell size">大小</div>
+        <div class="cell time">修改时间</div>
+      </div>
+      {% for e in entries %}
+        <div class="row">
+          <div class="cell name">
+            {% if e.is_dir %}
+              <a class="item" href="/browse/{{ e.rel_path|url_path }}">
+                <span class="ico">📁</span><span class="txt">{{ e.name }}</span>
+              </a>
+            {% else %}
+              <a class="item" href="/open/{{ e.rel_path|url_path }}">
+                <span class="ico">
+                  {% if e.kind == "image" %}🖼️{% elif e.kind == "video" %}🎬{% else %}📄{% endif %}
+                </span>
+                <span class="txt">{{ e.name }}</span>
+              </a>
+            {% endif %}
+          </div>
+          <div class="cell size">{{ e.size_str if not e.is_dir else "-" }}</div>
+          <div class="cell time">{{ e.mtime_str }}</div>
+
+          <div class="mobile-actions">
+            {% if e.is_dir %}
+              <a class="btn btn--small" href="/browse/{{ e.rel_path|url_path }}">打开</a>
+            {% else %}
+              <a class="btn btn--small" href="/open/{{ e.rel_path|url_path }}">预览</a>
+              <a class="btn btn--small btn--ghost" href="/raw/{{ e.rel_path|url_path }}?download=1">下载</a>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

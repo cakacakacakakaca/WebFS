@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% set title = filename ~ " - 视频播放" %}
+{% block content %}
+
+<div class="panel">
+  <div class="panel__title">
+    <div>
+      <div class="h1">{{ filename }}</div>
+      <div class="muted small">网页内播放 · 支持拖动进度条（Range）</div>
+    </div>
+    <div class="panel__actions">
+      <a class="btn btn--ghost" href="/raw/{{ rel_path|url_path }}?download=1">下载</a>
+    </div>
+  </div>
+</div>
+
+<div class="video-wrap">
+  <video class="video" controls playsinline preload="metadata">
+    <source src="/raw/{{ rel_path|url_path }}" type="{{ mime }}">
+    你的浏览器不支持视频播放。
+  </video>
+</div>
+
+{% endblock %}

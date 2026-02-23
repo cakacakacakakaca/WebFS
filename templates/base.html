@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>{{ title or "Web 文件服务器" }}</title>
+  <link rel="stylesheet" href="/static/app.css"/>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__left">
+      <a class="brand" href="/browse/">WebFS</a>
+      <span class="path">
+        {% if crumbs %}
+          <a href="/browse/">根目录</a>
+          {% for c in crumbs %}
+            <span class="sep">/</span>
+            <a href="/browse/{{ c.rel|url_path }}">{{ c.name }}</a>
+          {% endfor %}
+        {% else %}
+          <span class="muted">根目录</span>
+        {% endif %}
+      </span>
+    </div>
+    <div class="topbar__right">
+      <a class="btn btn--ghost" href="/browse/">主页</a>
+      {% if rel_path %}
+        <a class="btn btn--ghost" href="/browse/{{ (rel_path.rsplit('/',1)[0] if '/' in rel_path else '')|url_path }}">上级</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span class="muted">共享根目录：{{ root_name or "" }}</span>
+  </footer>
+</body>
+</html>

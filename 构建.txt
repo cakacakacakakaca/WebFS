@@ -1,0 +1,1 @@
+.\.venv\Scripts\pyinstaller.exe --noconsole --name WebFS --add-data "templates;templates" --add-data "static;static" gui.py
