@@ -122,6 +122,12 @@ class AppUI(tk.Tk):
         self.admin_accounts: list[dict] = []
         self.user_accounts: list[dict] = []
 
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
         self.status_var = tk.StringVar(value="已停止")
         self.url_var = tk.StringVar(value="")
         self.local_url_var = tk.StringVar(value="")
@@ -342,6 +348,26 @@ class AppUI(tk.Tk):
 
         fbar = ttk.Frame(frm)
         fbar.pack(fill="x")
+
+        row_filters = ttk.Frame(fbar)
+        row_filters.pack(fill="x")
+        ttk.Label(row_filters, text="快速筛选：").pack(side="left")
+        for name, val in [("全部", "ALL"), ("查看", "VIEW"), ("下载", "DOWNLOAD"), ("上传", "UPLOAD"), ("删除", "DELETE"), ("错误", "ERROR"), ("列表", "LIST")]:
+            ttk.Button(row_filters, text=name, command=lambda v=val: self.set_action_filter(v)).pack(side="left", padx=4)
+
+        ttk.Separator(row_filters, orient="vertical").pack(side="left", fill="y", padx=10)
+        ttk.Label(row_filters, text="关键字(IP/用户/路径)：").pack(side="left")
+        ent = ttk.Entry(row_filters, textvariable=self.filter_text, width=36)
+        ent.pack(side="left", padx=6, fill="x", expand=True)
+        ent.bind("<KeyRelease>", lambda e: self.rebuild_tree())
+        ttk.Checkbutton(row_filters, text="自动滚动", variable=self.autoscroll).pack(side="left", padx=10)
+
+        row_actions = ttk.Frame(fbar)
+        row_actions.pack(fill="x", pady=(6, 0))
+        ttk.Button(row_actions, text="清空视图", command=self.clear_view).pack(side="left")
+        ttk.Button(row_actions, text="导出日志…", command=self.export_log).pack(side="left", padx=8)
+        ttk.Button(row_actions, text="备份日志到目录…", command=self.backup_logs).pack(side="left", padx=8)
+        ttk.Button(row_actions, text="清空所有日志", command=self.clear_all_logs).pack(side="left", padx=8)
         ttk.Label(fbar, text="快速筛选：").pack(side="left")
         for name, val in [("全部", "ALL"), ("查看", "VIEW"), ("下载", "DOWNLOAD"), ("上传", "UPLOAD"), ("删除", "DELETE"), ("错误", "ERROR"), ("列表", "LIST")]:
             ttk.Button(fbar, text=name, command=lambda v=val: self.set_action_filter(v)).pack(side="left", padx=4)
