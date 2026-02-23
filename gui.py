@@ -319,12 +319,26 @@ class AppUI(tk.Tk):
         draw.rectangle((22, 22, 42, 42), fill=(39, 116, 255, 255))
         return img
 
+    def _tray_can_start(self, _item=None) -> bool:
+        return not self.ctrl.running()
+
+    def _tray_can_stop(self, _item=None) -> bool:
+        return self.ctrl.running()
+
+    def _refresh_tray_menu(self):
+        if self._tray_icon is None:
+            return
+        try:
+            self._tray_icon.update_menu()
+        except Exception:
+            pass
+
     def _start_tray_icon(self):
         if self._tray_icon is not None:
             return
         menu = pystray.Menu(
-            pystray.MenuItem("启动服务器", partial(self._tray_action, "start")),
-            pystray.MenuItem("停止服务器", partial(self._tray_action, "stop")),
+            pystray.MenuItem("启动服务器", partial(self._tray_action, "start"), enabled=self._tray_can_start),
+            pystray.MenuItem("停止服务器", partial(self._tray_action, "stop"), enabled=self._tray_can_stop),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("打开界面", partial(self._tray_action, "show"), default=True),
             pystray.MenuItem("退出程序", partial(self._tray_action, "exit")),
@@ -1048,6 +1062,7 @@ class AppUI(tk.Tk):
             self.canvas.itemconfig(self.dot, fill="#999999")
             self.btn_start.state(["!disabled"])
             self.btn_stop.state(["disabled"])
+        self._refresh_tray_menu()
 
     def _poll_queues(self):
         try:
