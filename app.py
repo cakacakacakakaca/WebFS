@@ -49,7 +49,8 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 class AccessLog:
     ts: float
     ip: str
-    action: str          # LIST / VIEW / DOWNLOAD / UPLOAD / ERROR / THUMB
+    user: str
+    action: str          # LIST / VIEW / DOWNLOAD / UPLOAD / DELETE / ERROR / THUMB
     path: str            # rel path or url path
     status: int
     detail: str = ""
@@ -72,9 +73,9 @@ def _ensure_log_store():
         app.state.log_file = None  # Path or None
 
 
-def log_access(ip: str, action: str, path: str, status: int = 200, detail: str = ""):
+def log_access(ip: str, action: str, path: str, status: int = 200, detail: str = "", user: str = "-"):
     _ensure_log_store()
-    entry = AccessLog(ts=time.time(), ip=ip, action=action, path=path, status=status, detail=detail)
+    entry = AccessLog(ts=time.time(), ip=ip, user=user, action=action, path=path, status=status, detail=detail)
 
     with app.state.log_lock:
         app.state.logs.append(entry)
@@ -135,6 +136,13 @@ def get_current_user(request: Request) -> Optional[dict]:
     return user
 
 
+def get_request_user_label(request: Request) -> str:
+    user = get_current_user(request)
+    if not user:
+        return "-"
+    return f"{user.get('username', '-') }({user.get('role', '-')})"
+
+
 def build_permissions(role: str, user: Optional[dict] = None, cfg: Optional[dict] = None) -> dict:
     if role == "admin":
         return {"browse": True, "view": True, "download": True, "upload": True, "delete": True}
@@ -187,14 +195,14 @@ templates.env.filters["url_path"] = url_path
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     ip = request.client.host if request.client else "-"
-    log_access(ip, "ERROR", request.url.path, status=exc.status_code, detail=str(exc.detail))
+    log_access(ip, "ERROR", request.url.path, status=exc.status_code, detail=str(exc.detail), user=get_request_user_label(request))
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     ip = request.client.host if request.client else "-"
-    log_access(ip, "ERROR", request.url.path, status=422, detail="ValidationError")
+    log_access(ip, "ERROR", request.url.path, status=422, detail="ValidationError", user=get_request_user_label(request))
     return JSONResponse(status_code=422, content={"detail": "Invalid request"})
 
 
@@ -310,7 +318,7 @@ def browse(request: Request, rel_path: str = ""):
 
     # 记录：LIST
     ip = request.client.host if request.client else "-"
-    log_access(ip, "LIST", "/" + rel_path if rel_path else "/")
+    log_access(ip, "LIST", "/" + rel_path if rel_path else "/", user=get_request_user_label(request))
 
     image_mode = (stats["image_files"] >= 6) and (stats["image_ratio"] >= 0.6)
 
@@ -357,7 +365,7 @@ def open_file(request: Request, rel_path: str):
         raise HTTPException(404, "Not found")
 
     ip = request.client.host if request.client else "-"
-    log_access(ip, "VIEW", "/" + rel_path)
+    log_access(ip, "VIEW", "/" + rel_path, user=get_request_user_label(request))
 
     if is_image(p):
         folder_rel, imgs, idx = image_list_in_folder(root, rel_path)
@@ -454,7 +462,7 @@ def raw(request: Request, rel_path: str, download: int = 0):
 
     ip = request.client.host if request.client else "-"
     action = "DOWNLOAD" if download else "VIEW"
-    log_access(ip, action, "/" + rel_path)
+    log_access(ip, action, "/" + rel_path, user=get_request_user_label(request))
 
     file_size = p.stat().st_size
     range_header = request.headers.get("range")
@@ -571,7 +579,9 @@ async def upload(request: Request, rel_dir: str, file: UploadFile = File(...)):
     out.write_bytes(data)
 
     ip = request.client.host if request.client else "-"
-    log_access(ip, "UPLOAD", f"/{rel_dir}/{out.name}".replace("//", "/"), status=200, detail=f"{len(data)} bytes")
+    log_access(ip, "UPLOAD", f"/{rel_dir}/{out.name}".replace("//", "/"), status=200, detail=f"{len(data)} bytes", user=get_request_user_label(request))
+
+    return {"ok": True, "saved_as": out.name, "bytes": len(data)}
 
     return {"ok": True, "saved_as": out.name, "bytes": len(data)}
 
@@ -589,6 +599,7 @@ def delete_file(request: Request, rel_path: str):
         raise HTTPException(404, "Not found")
     p.unlink()
     ip = request.client.host if request.client else "-"
+    log_access(ip, "DELETE", "/" + rel_path, status=200, user=get_request_user_label(request))
     log_access(ip, "DELETE", "/" + rel_path, status=200)
     parent = rel_path.rsplit("/", 1)[0] if "/" in rel_path else ""
     return RedirectResponse(url=f"/browse/{url_path(parent)}", status_code=303)
