@@ -1,1 +1,51 @@
+WebFS Windows 打包方案（无外部 Python 依赖）
+
+推荐方式：PyInstaller + spec 文件（仓库内 WebFS.spec）
+适用原因：
+1) 项目入口是 gui.py（Tkinter 桌面程序），适合打包为无控制台窗口的 Windows 应用。
+2) app.py 运行时依赖 templates/ 与 static/ 目录，spec 中已固定收集这两类资源，避免路径遗漏。
+3) uvicorn/FastAPI 在冻结后偶发动态导入丢失，spec 已补充常见 hiddenimports，提升 exe 可运行性。
+
+----------------------------------------
+一、在 Windows 构建机上准备环境（只在构建阶段需要 Python）
+----------------------------------------
+
+1. 创建并激活虚拟环境
+python -m venv .venv
+.\.venv\Scripts\activate
+
+2. 安装依赖与打包工具
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install pyinstaller
+
+建议：优先使用 Python 3.11 或 3.12 构建（稳定性通常优于 3.13 的早期生态）。
+
+----------------------------------------
+二、执行打包
+----------------------------------------
+
+优先使用 spec（推荐）：
+pyinstaller --noconfirm --clean WebFS.spec
+
+产物：
+- dist\WebFS.exe
+
+----------------------------------------
+三、分发建议
+----------------------------------------
+
+1) 直接分发 dist\WebFS.exe 给终端用户即可，无需其安装 Python。
+2) 首次启动若被 Windows SmartScreen 拦截，点击“更多信息 -> 仍要运行”。
+3) 若希望减小误报率，建议对 exe 做代码签名后再分发。
+4) 若 exe 可打开但“启动服务器”无响应，优先升级到最新代码后重打包（已加入启动诊断提示），并尝试用 Python 3.11/3.12 重新构建。
+5) 若仍异常，请查看运行日志：%APPDATA%\WebFS\runtime.log（记录 GUI 回调异常与启动异常堆栈）。
+
+----------------------------------------
+四、回滚到一条命令方式（备选）
+----------------------------------------
+
+若不使用 spec，可用：
 .\.venv\Scripts\pyinstaller.exe --noconsole --name WebFS --add-data "templates;templates" --add-data "static;static" gui.py
+
+说明：该方式简单，但不如 spec 易维护（hiddenimports 与参数更难集中管理）。
