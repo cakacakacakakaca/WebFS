@@ -4,6 +4,7 @@ import json
 import os
 import queue
 import socket
+import sys
 import threading
 import time
 import tkinter as tk
@@ -84,6 +85,33 @@ class ServerController:
         th.start()
         self.servers.append(server)
         self.threads.append(th)
+
+    def wait_started(self, timeout: float = 3.0) -> tuple[bool, str]:
+        """Wait for server startup and return (success, reason)."""
+        if not self.servers:
+            return False, "未创建服务器实例。"
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if any(getattr(s, "started", False) for s in self.servers):
+                return True, ""
+
+            # server thread crashed with exception
+            try:
+                err = self.error_queue.get_nowait()
+                return False, err
+            except queue.Empty:
+                pass
+
+            # server exited silently (common in frozen env when startup fails very early)
+            if self.threads and all(not th.is_alive() for th in self.threads):
+                return False, "服务线程已退出，请检查端口、权限或运行环境。"
+
+            time.sleep(0.05)
+
+        if any(getattr(s, "started", False) for s in self.servers):
+            return True, ""
+        return False, "服务启动超时，可能被安全软件拦截或运行环境缺少依赖。"
 
     def start(self, root_dir: str, host: str, port: int, log_file: str):
         if self.running():
@@ -526,6 +554,13 @@ class AppUI(tk.Tk):
         webapp.set_auth_config({"admins": self.admin_accounts, "users": self.user_accounts, "guest_mode": self.guest_mode_var.get()})
         self.ctrl.start(root_dir=root_dir, host=host, port=port, log_file=str(LOG_FILE))
 
+        ok, reason = self.ctrl.wait_started(timeout=4.0)
+        if not ok:
+            self.ctrl.stop()
+            messagebox.showerror("启动失败", f"服务器未能启动：\n{reason}")
+            self._refresh_status_ui()
+            return
+
         self._refresh_status_ui()
         if host == "dual":
             self.url_var.set(f"http://{self.lan_ip}:{port}  /  http://[::1]:{port}")
@@ -940,4 +975,10 @@ class AppUI(tk.Tk):
         messagebox.showinfo("完成", "普通账户已添加/更新。")
 
 if __name__ == "__main__":
+    # Required for some frozen Windows environments (PyInstaller onefile/onedir)
+    # where background threads and network initialization can behave differently.
+    if sys.platform.startswith("win"):
+        import multiprocessing
+
+        multiprocessing.freeze_support()
     AppUI().mainloop()
