@@ -51,40 +51,59 @@ def check_port_free(host: str, port: int) -> tuple[bool, str]:
             pass
 
 
+def check_dual_stack_port_free(port: int) -> tuple[bool, str]:
+    ok4, err4 = check_port_free("0.0.0.0", port)
+    if not ok4:
+        return False, f"IPv4: {err4}"
+    ok6, err6 = check_port_free("::", port)
+    if not ok6:
+        return False, f"IPv6: {err6}"
+    return True, ""
+
+
 class ServerController:
     def __init__(self):
-        self.server: uvicorn.Server | None = None
-        self.thread: threading.Thread | None = None
+        self.servers: list[uvicorn.Server] = []
+        self.threads: list[threading.Thread] = []
         self.error_queue: "queue.Queue[str]" = queue.Queue()
+
+    def _start_single(self, host: str, port: int):
+        config = uvicorn.Config(webapp.app, host=host, port=port, log_level="warning", access_log=False)
+        server = uvicorn.Server(config)
+
+        def run():
+            try:
+                server.run()
+            except Exception as e:
+                try:
+                    self.error_queue.put_nowait(f"[{host}:{port}] {e}")
+                except Exception:
+                    pass
+
+        th = threading.Thread(target=run, daemon=True)
+        th.start()
+        self.servers.append(server)
+        self.threads.append(th)
 
     def start(self, root_dir: str, host: str, port: int, log_file: str):
         if self.running():
             return
 
         webapp.set_runtime(root_dir=root_dir, log_file=log_file)
-        config = uvicorn.Config(webapp.app, host=host, port=port, log_level="warning", access_log=False)
-        self.server = uvicorn.Server(config)
-
-        def run():
-            try:
-                self.server.run()
-            except Exception as e:
-                try:
-                    self.error_queue.put_nowait(str(e))
-                except Exception:
-                    pass
-
-        self.thread = threading.Thread(target=run, daemon=True)
-        self.thread.start()
+        if host == "dual":
+            self._start_single("0.0.0.0", port)
+            self._start_single("::", port)
+        else:
+            self._start_single(host, port)
 
     def stop(self):
-        if self.server:
-            self.server.should_exit = True
-        self.server = None
-        self.thread = None
+        for s in self.servers:
+            s.should_exit = True
+        self.servers = []
+        self.threads = []
 
     def running(self) -> bool:
-        return self.server is not None and not self.server.should_exit
+        return any(not s.should_exit for s in self.servers)
 
 
 class AppUI(tk.Tk):
@@ -99,6 +118,12 @@ class AppUI(tk.Tk):
 
         self.root_var = tk.StringVar()
         self.port_var = tk.StringVar(value="8000")
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
         self.allow_ipv4 = tk.BooleanVar(value=True)
         self.allow_ipv6 = tk.BooleanVar(value=False)
         self.guest_mode_var = tk.StringVar(value="browse_only")
@@ -468,6 +493,8 @@ class AppUI(tk.Tk):
     def _build_host(self) -> str:
         if not self.allow_ipv4.get() and not self.allow_ipv6.get():
             raise ValueError("IPv4 和 IPv6 不能同时禁用。")
+        if self.allow_ipv4.get() and self.allow_ipv6.get():
+            return "dual"
         if self.allow_ipv6.get():
             return "::"
         return "0.0.0.0"
@@ -487,7 +514,10 @@ class AppUI(tk.Tk):
             messagebox.showerror("启动失败", "请选择有效的共享文件夹。")
             return
 
-        ok, err = check_port_free(host, port)
+        if host == "dual":
+            ok, err = check_dual_stack_port_free(port)
+        else:
+            ok, err = check_port_free(host, port)
         if not ok:
             messagebox.showerror("启动失败", f"端口无法绑定：\n{err}")
             return
@@ -497,8 +527,11 @@ class AppUI(tk.Tk):
         self.ctrl.start(root_dir=root_dir, host=host, port=port, log_file=str(LOG_FILE))
 
         self._refresh_status_ui()
-        show_host = self.lan_ip if host == "0.0.0.0" else "[::1]" if host == "::" else host
-        self.url_var.set(f"http://{show_host}:{port}")
+        if host == "dual":
+            self.url_var.set(f"http://{self.lan_ip}:{port}  /  http://[::1]:{port}")
+        else:
+            show_host = self.lan_ip if host == "0.0.0.0" else "[::1]" if host == "::" else host
+            self.url_var.set(f"http://{show_host}:{port}")
         self.local_url_var.set(f"http://127.0.0.1:{port}")
 
     def stop_server(self):
