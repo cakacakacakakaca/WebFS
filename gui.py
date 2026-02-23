@@ -9,11 +9,14 @@ import threading
 import time
 import tkinter as tk
 import traceback
+from functools import partial
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 
+from PIL import Image, ImageDraw
 import uvicorn
+import pystray
 
 import app as webapp
 
@@ -225,6 +228,10 @@ class AppUI(tk.Tk):
         self.acc_perm_delete = tk.BooleanVar(value=False)
 
         self._logs_tab_built = False
+        self._tray_icon: pystray.Icon | None = None
+        self._tray_thread: threading.Thread | None = None
+        self._exiting = False
+        self._close_to_tray_tip_shown = False
 
         self._build_ui()
         self._load_config()
@@ -233,6 +240,47 @@ class AppUI(tk.Tk):
         self._refresh_status_ui()
         self._poll_queues()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self._start_tray_icon()
+
+    def _make_tray_image(self) -> Image.Image:
+        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle((8, 8, 56, 56), radius=12, fill=(39, 116, 255, 255))
+        draw.rectangle((18, 18, 46, 46), fill=(255, 255, 255, 255))
+        draw.rectangle((22, 22, 42, 42), fill=(39, 116, 255, 255))
+        return img
+
+    def _start_tray_icon(self):
+        if self._tray_icon is not None:
+            return
+        menu = pystray.Menu(
+            pystray.MenuItem("启动服务器", partial(self._tray_action, "start")),
+            pystray.MenuItem("停止服务器", partial(self._tray_action, "stop")),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("打开界面", partial(self._tray_action, "show")),
+            pystray.MenuItem("退出程序", partial(self._tray_action, "exit")),
+        )
+        self._tray_icon = pystray.Icon("WebFS", self._make_tray_image(), "WebFS", menu)
+        self._tray_thread = threading.Thread(target=self._tray_icon.run, daemon=True)
+        self._tray_thread.start()
+
+    def _tray_action(self, action: str, *_):
+        self.after(0, lambda: self._handle_tray_action(action))
+
+    def _handle_tray_action(self, action: str):
+        if action == "start":
+            self.start_server()
+        elif action == "stop":
+            self.stop_server()
+        elif action == "show":
+            self.show_window()
+        elif action == "exit":
+            self.exit_app()
+
+    def show_window(self):
+        self.deiconify()
+        self.lift()
+        self.focus_force()
 
     def _log_runtime_error(self, title: str, detail: str) -> None:
         try:
@@ -966,6 +1014,21 @@ class AppUI(tk.Tk):
 
     def on_close(self):
         self._save_config()
+        if self._exiting:
+            return
+        self.withdraw()
+        if not self._close_to_tray_tip_shown:
+            self._close_to_tray_tip_shown = True
+            messagebox.showinfo("WebFS", "窗口已最小化到系统托盘，服务器会继续运行。\n可通过任务栏图标右键菜单重新打开界面或退出程序。")
+
+    def exit_app(self):
+        self._save_config()
+        self._exiting = True
+        if self._tray_icon is not None:
+            try:
+                self._tray_icon.stop()
+            except Exception:
+                pass
         try:
             self.ctrl.stop()
         except Exception:
