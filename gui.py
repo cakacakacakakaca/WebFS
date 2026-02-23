@@ -76,7 +76,7 @@ class ServerController:
         self.threads = [t for _, t in pairs]
 
     def _start_single(self, host: str, port: int):
-        config = uvicorn.Config(webapp.app, host=host, port=port, log_level="warning", access_log=False)
+        config = uvicorn.Config(webapp.app, host=host, port=port, log_level="warning", access_log=False, log_config=None, use_colors=False)
         server = uvicorn.Server(config)
 
         def run():
