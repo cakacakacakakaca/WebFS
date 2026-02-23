@@ -9,7 +9,7 @@
       <div class="muted small">网页内播放 · 支持拖动进度条（Range）</div>
     </div>
     <div class="panel__actions">
-      <a class="btn btn--ghost" href="/raw/{{ rel_path|url_path }}?download=1">下载</a>
+      {% if can_download %}<a class="btn btn--ghost" href="/raw/{{ rel_path|url_path }}?download=1">下载</a>{% endif %}
     </div>
   </div>
 </div>

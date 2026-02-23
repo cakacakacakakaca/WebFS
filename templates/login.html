@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>登录 - WebFS</title>
+  <link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+<main class="container">
+  <div class="panel auth-card">
+    <div class="h1">WebFS 登录</div>
+    <p class="muted">请先登录再访问文件系统。</p>
+    {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+
+    {% if guest_mode == 'debug' %}
+      <p class="warn">⚠ 游客处于调试模式：游客将拥有全部权限，存在高风险。</p>
+    {% endif %}
+
+    <form class="auth-form" action="/login" method="post">
+      <input type="text" name="username" placeholder="用户名" required>
+      <input type="password" name="password" placeholder="密码" required>
+      <button class="btn" type="submit">登录</button>
+    </form>
+
+    {% if allow_guest %}
+      <a class="btn btn--ghost" href="/guest-enter">以游客模式进入</a>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>
