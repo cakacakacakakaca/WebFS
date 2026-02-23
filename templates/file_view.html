@@ -9,7 +9,7 @@
       <div class="muted small">类型：{{ mime }} · 大小：{{ size }} bytes</div>
     </div>
     <div class="panel__actions">
-      <a class="btn" href="/raw/{{ rel_path|url_path }}?download=1">下载</a>
+      {% if can_download %}<a class="btn" href="/raw/{{ rel_path|url_path }}?download=1">下载</a>{% endif %}
       <a class="btn btn--ghost" href="/raw/{{ rel_path|url_path }}">直接打开</a>
     </div>
   </div>
