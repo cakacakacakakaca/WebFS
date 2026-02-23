@@ -24,6 +24,10 @@
         <div class="fsname" id="fsName">{{ filename }}</div>
         <div class="fscount muted" id="fsCount"></div>
       </div>
+
+      {% if can_download %}
+        <a class="fsbtn" href="/raw/{{ rel_path|url_path }}?download=1" aria-label="下载">⬇</a>
+      {% endif %}
     </header>
 
     <!-- 画面区域：全屏独占 -->
