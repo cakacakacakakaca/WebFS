@@ -252,8 +252,6 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
     token = uuid4().hex
     if not hasattr(app.state, "sessions"):
         app.state.sessions = {}
-    if not hasattr(app.state, "sessions"):
-        app.state.sessions = {}
     app.state.sessions[token] = {
         "username": account.get("username", username),
         "role": role,
@@ -583,8 +581,6 @@ async def upload(request: Request, rel_dir: str, file: UploadFile = File(...)):
 
     return {"ok": True, "saved_as": out.name, "bytes": len(data)}
 
-    return {"ok": True, "saved_as": out.name, "bytes": len(data)}
-
 
 @app.post("/delete/{rel_path:path}")
 def delete_file(request: Request, rel_path: str):
@@ -600,6 +596,5 @@ def delete_file(request: Request, rel_path: str):
     p.unlink()
     ip = request.client.host if request.client else "-"
     log_access(ip, "DELETE", "/" + rel_path, status=200, user=get_request_user_label(request))
-    log_access(ip, "DELETE", "/" + rel_path, status=200)
     parent = rel_path.rsplit("/", 1)[0] if "/" in rel_path else ""
     return RedirectResponse(url=f"/browse/{url_path(parent)}", status_code=303)

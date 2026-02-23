@@ -134,6 +134,12 @@ class AppUI(tk.Tk):
         self.admin_accounts: list[dict] = []
         self.user_accounts: list[dict] = []
 
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
         self.status_var = tk.StringVar(value="已停止")
         self.url_var = tk.StringVar(value="")
         self.local_url_var = tk.StringVar(value="")
@@ -154,6 +160,8 @@ class AppUI(tk.Tk):
         self.acc_perm_download = tk.BooleanVar(value=False)
         self.acc_perm_upload = tk.BooleanVar(value=False)
         self.acc_perm_delete = tk.BooleanVar(value=False)
+
+        self._logs_tab_built = False
 
         self._build_ui()
         self._load_config()
@@ -348,8 +356,11 @@ class AppUI(tk.Tk):
             self.acc_log_tree.column(c, width=w, anchor="w")
         self.acc_log_tree.pack(fill="both", expand=True)
 
-    def _build_logs_tab(self):
+    def _build_logs_tab(self, force: bool = False):
         # 防止重复构建导致日志工具栏/表格重复出现
+        if self._logs_tab_built and not force:
+            return
+
         for child in self.tab_logs.winfo_children():
             child.destroy()
 
@@ -378,29 +389,6 @@ class AppUI(tk.Tk):
         ttk.Button(row_actions, text="导出日志…", command=self.export_log).pack(side="left", padx=8)
         ttk.Button(row_actions, text="备份日志到目录…", command=self.backup_logs).pack(side="left", padx=8)
         ttk.Button(row_actions, text="清空所有日志", command=self.clear_all_logs).pack(side="left", padx=8)
-        ent.bind("<KeyRelease>", lambda e: self.rebuild_tree())
-        ttk.Checkbutton(row_filters, text="自动滚动", variable=self.autoscroll).pack(side="left", padx=10)
-
-        row_actions = ttk.Frame(fbar)
-        row_actions.pack(fill="x", pady=(6, 0))
-        ttk.Button(row_actions, text="清空视图", command=self.clear_view).pack(side="left")
-        ttk.Button(row_actions, text="导出日志…", command=self.export_log).pack(side="left", padx=8)
-        ttk.Button(row_actions, text="备份日志到目录…", command=self.backup_logs).pack(side="left", padx=8)
-        ttk.Button(row_actions, text="清空所有日志", command=self.clear_all_logs).pack(side="left", padx=8)
-        ttk.Label(fbar, text="快速筛选：").pack(side="left")
-        for name, val in [("全部", "ALL"), ("查看", "VIEW"), ("下载", "DOWNLOAD"), ("上传", "UPLOAD"), ("删除", "DELETE"), ("错误", "ERROR"), ("列表", "LIST")]:
-            ttk.Button(fbar, text=name, command=lambda v=val: self.set_action_filter(v)).pack(side="left", padx=4)
-
-        ttk.Separator(fbar, orient="vertical").pack(side="left", fill="y", padx=10)
-        ttk.Label(fbar, text="关键字(IP/用户/路径)：").pack(side="left")
-        ent = ttk.Entry(fbar, textvariable=self.filter_text, width=40)
-        ent.pack(side="left", padx=6)
-        ent.bind("<KeyRelease>", lambda e: self.rebuild_tree())
-        ttk.Checkbutton(fbar, text="自动滚动", variable=self.autoscroll).pack(side="left", padx=10)
-        ttk.Button(fbar, text="清空所有日志", command=self.clear_all_logs).pack(side="right")
-        ttk.Button(fbar, text="备份日志到目录…", command=self.backup_logs).pack(side="right", padx=8)
-        ttk.Button(fbar, text="导出日志…", command=self.export_log).pack(side="right", padx=8)
-        ttk.Button(fbar, text="清空视图", command=self.clear_view).pack(side="right", padx=8)
 
         self.stats_var = tk.StringVar(value="统计：0 条")
         ttk.Label(frm, textvariable=self.stats_var).pack(anchor="w", pady=(8, 6))
@@ -418,6 +406,7 @@ class AppUI(tk.Tk):
         self.tree.configure(yscrollcommand=vsb.set)
         self.tree.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
+        self._logs_tab_built = True
 
     def _load_config(self):
         if CFG_FILE.exists():
@@ -432,14 +421,11 @@ class AppUI(tk.Tk):
                 self.user_accounts = data.get("users", [])
                 if not self.admin_accounts:
                     self.admin_accounts = [{"username": "admin", "password": "admin"}]
-                self.admin_accounts = data.get("admins", [{"username":"admin","password":"admin"}])
-                self.user_accounts = data.get("users", [])
                 return
             except Exception:
                 pass
         self.root_var.set(str(Path.home()))
         self.admin_accounts = [{"username": "admin", "password": "admin"}]
-        self.admin_accounts = [{"username":"admin","password":"admin"}]
         self.user_accounts = []
 
     def _save_config(self):
@@ -499,12 +485,6 @@ class AppUI(tk.Tk):
 
     def start_server(self):
         root_dir = self.root_var.get().strip()
-        if not self.allow_ipv4.get() and not self.allow_ipv6.get():
-            messagebox.showerror("启动失败", "IPv4 和 IPv6 不能同时禁用。")
-            return
-        host = "::" if self.allow_ipv6.get() and not self.allow_ipv4.get() else "0.0.0.0"
-        if self.allow_ipv4.get() and self.allow_ipv6.get():
-            host = "::"
         try:
             host = self._build_host()
             port = int(self.port_var.get().strip())
@@ -525,13 +505,6 @@ class AppUI(tk.Tk):
 
         self._save_config()
         webapp.set_auth_config({"admins": self.admin_accounts, "users": self.user_accounts, "guest_mode": self.guest_mode_var.get()})
-
-        webapp.set_auth_config({
-            "admins": self.admin_accounts,
-            "users": self.user_accounts,
-            "guest_mode": self.guest_mode_var.get(),
-        })
-        # 启动
         self.ctrl.start(root_dir=root_dir, host=host, port=port, log_file=str(LOG_FILE))
 
         self._refresh_status_ui()
