@@ -116,6 +116,12 @@ class AppUI(tk.Tk):
         self.admin_accounts: list[dict] = []
         self.user_accounts: list[dict] = []
 
+        self.allow_ipv4 = tk.BooleanVar(value=True)
+        self.allow_ipv6 = tk.BooleanVar(value=False)
+        self.guest_mode_var = tk.StringVar(value="browse_only")
+        self.admin_accounts: list[dict] = []
+        self.user_accounts: list[dict] = []
+
         self.status_var = tk.StringVar(value="已停止")
         self.url_var = tk.StringVar(value="")
         self.local_url_var = tk.StringVar(value="")
@@ -346,8 +352,10 @@ class AppUI(tk.Tk):
         ent.pack(side="left", padx=6)
         ent.bind("<KeyRelease>", lambda e: self.rebuild_tree())
         ttk.Checkbutton(fbar, text="自动滚动", variable=self.autoscroll).pack(side="left", padx=10)
-        ttk.Button(fbar, text="清空视图", command=self.clear_view).pack(side="right")
+        ttk.Button(fbar, text="清空所有日志", command=self.clear_all_logs).pack(side="right")
+        ttk.Button(fbar, text="备份日志到目录…", command=self.backup_logs).pack(side="right", padx=8)
         ttk.Button(fbar, text="导出日志…", command=self.export_log).pack(side="right", padx=8)
+        ttk.Button(fbar, text="清空视图", command=self.clear_view).pack(side="right", padx=8)
 
         self.stats_var = tk.StringVar(value="统计：0 条")
         ttk.Label(frm, textvariable=self.stats_var).pack(anchor="w", pady=(8, 6))
@@ -729,6 +737,64 @@ class AppUI(tk.Tk):
             messagebox.showinfo("导出成功", f"已导出到：\n{fp}")
         except Exception as e:
             messagebox.showerror("导出失败", str(e))
+
+    def backup_logs(self):
+        target_dir = filedialog.askdirectory(initialdir=str(CFG_DIR), title="选择日志备份目录")
+        if not target_dir:
+            return
+
+        target = Path(target_dir)
+        target.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+        out = target / f"webfs_access_backup_{stamp}.log"
+
+        try:
+            if LOG_FILE.exists():
+                out.write_text(LOG_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+            else:
+                with out.open("w", encoding="utf-8") as f:
+                    for row in self.log_rows:
+                        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            messagebox.showinfo("备份成功", f"日志已备份到：\n{out}")
+        except Exception as e:
+            messagebox.showerror("备份失败", str(e))
+
+    def clear_all_logs(self):
+        if not messagebox.askyesno("确认清空", "将清空内存与磁盘中的全部访问日志，是否继续？"):
+            return
+
+        self.log_rows.clear()
+        self.rebuild_tree()
+        self.refresh_account_logs()
+
+        self.tail_text.configure(state="normal")
+        self.tail_text.delete("1.0", "end")
+        self.tail_text.configure(state="disabled")
+
+        try:
+            LOG_FILE.write_text("", encoding="utf-8")
+        except Exception:
+            pass
+
+        try:
+            logs = getattr(webapp.app.state, "logs", None)
+            if logs is not None:
+                logs.clear()
+        except Exception:
+            pass
+
+        try:
+            q = getattr(webapp.app.state, "log_queue", None)
+            if q:
+                while True:
+                    q.get_nowait()
+        except queue.Empty:
+            pass
+        except Exception:
+            pass
+
+        self._update_stats()
+        messagebox.showinfo("完成", "已清空全部日志记录。")
 
     def _update_stats(self, scroll_to_end: bool = False):
         filtered = [r for r in self.log_rows if self._match_filter(r)]
