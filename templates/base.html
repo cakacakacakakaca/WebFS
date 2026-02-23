@@ -25,6 +25,8 @@
     </div>
     <div class="topbar__right">
       <a class="btn btn--ghost" href="/browse/">主页</a>
+      {% if user %}<span class="muted small">{{ user.username }} ({{ user.role }})</span>{% endif %}
+      {% if user %}<a class="btn btn--ghost" href="/logout">退出</a>{% endif %}
       {% if rel_path %}
         <a class="btn btn--ghost" href="/browse/{{ (rel_path.rsplit('/',1)[0] if '/' in rel_path else '')|url_path }}">上级</a>
       {% endif %}
