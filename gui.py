@@ -8,8 +8,9 @@ import sys
 import threading
 import time
 import tkinter as tk
+import traceback
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 
 import uvicorn
@@ -21,6 +22,7 @@ CFG_DIR = APPDATA / "WebFS"
 CFG_DIR.mkdir(parents=True, exist_ok=True)
 CFG_FILE = CFG_DIR / "config.json"
 LOG_FILE = CFG_DIR / "access.log"
+RUNTIME_LOG_FILE = CFG_DIR / "runtime.log"
 
 
 def get_lan_ip() -> str:
@@ -68,6 +70,11 @@ class ServerController:
         self.threads: list[threading.Thread] = []
         self.error_queue: "queue.Queue[str]" = queue.Queue()
 
+    def _cleanup_dead(self):
+        pairs = [(s, t) for s, t in zip(self.servers, self.threads) if t.is_alive() and not s.should_exit]
+        self.servers = [s for s, _ in pairs]
+        self.threads = [t for _, t in pairs]
+
     def _start_single(self, host: str, port: int):
         config = uvicorn.Config(webapp.app, host=host, port=port, log_level="warning", access_log=False)
         server = uvicorn.Server(config)
@@ -114,6 +121,7 @@ class ServerController:
         return False, "服务启动超时，可能被安全软件拦截或运行环境缺少依赖。"
 
     def start(self, root_dir: str, host: str, port: int, log_file: str):
+        self._cleanup_dead()
         if self.running():
             return
 
@@ -131,7 +139,8 @@ class ServerController:
         self.threads = []
 
     def running(self) -> bool:
-        return any(not s.should_exit for s in self.servers)
+        self._cleanup_dead()
+        return bool(self.servers)
 
 
 class AppUI(tk.Tk):
@@ -224,6 +233,19 @@ class AppUI(tk.Tk):
         self._refresh_status_ui()
         self._poll_queues()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def _log_runtime_error(self, title: str, detail: str) -> None:
+        try:
+            ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            with RUNTIME_LOG_FILE.open("a", encoding="utf-8") as f:
+                f.write(f"[{ts}] {title}\n{detail}\n\n")
+        except Exception:
+            pass
+
+    def report_callback_exception(self, exc, val, tb):
+        detail = "".join(traceback.format_exception(exc, val, tb))
+        self._log_runtime_error("Tk callback exception", detail)
+        messagebox.showerror("程序异常", f"发生未处理异常，详情已写入：\n{RUNTIME_LOG_FILE}\n\n{val}")
 
     def _build_ui(self):
         style = ttk.Style()
@@ -528,46 +550,51 @@ class AppUI(tk.Tk):
         return "0.0.0.0"
 
     def start_server(self):
-        root_dir = self.root_var.get().strip()
         try:
-            host = self._build_host()
-            port = int(self.port_var.get().strip())
-            if not (1 <= port <= 65535):
-                raise ValueError("端口必须是 1~65535")
-        except ValueError as e:
-            messagebox.showerror("启动失败", str(e))
-            return
+            root_dir = self.root_var.get().strip()
+            try:
+                host = self._build_host()
+                port = int(self.port_var.get().strip())
+                if not (1 <= port <= 65535):
+                    raise ValueError("端口必须是 1~65535")
+            except ValueError as e:
+                messagebox.showerror("启动失败", str(e))
+                return
 
-        if not root_dir or not Path(root_dir).exists():
-            messagebox.showerror("启动失败", "请选择有效的共享文件夹。")
-            return
+            if not root_dir or not Path(root_dir).exists():
+                messagebox.showerror("启动失败", "请选择有效的共享文件夹。")
+                return
 
-        if host == "dual":
-            ok, err = check_dual_stack_port_free(port)
-        else:
-            ok, err = check_port_free(host, port)
-        if not ok:
-            messagebox.showerror("启动失败", f"端口无法绑定：\n{err}")
-            return
+            if host == "dual":
+                ok, err = check_dual_stack_port_free(port)
+            else:
+                ok, err = check_port_free(host, port)
+            if not ok:
+                messagebox.showerror("启动失败", f"端口无法绑定：\n{err}")
+                return
 
-        self._save_config()
-        webapp.set_auth_config({"admins": self.admin_accounts, "users": self.user_accounts, "guest_mode": self.guest_mode_var.get()})
-        self.ctrl.start(root_dir=root_dir, host=host, port=port, log_file=str(LOG_FILE))
+            self._save_config()
+            webapp.set_auth_config({"admins": self.admin_accounts, "users": self.user_accounts, "guest_mode": self.guest_mode_var.get()})
+            self.ctrl.start(root_dir=root_dir, host=host, port=port, log_file=str(LOG_FILE))
 
-        ok, reason = self.ctrl.wait_started(timeout=4.0)
-        if not ok:
-            self.ctrl.stop()
-            messagebox.showerror("启动失败", f"服务器未能启动：\n{reason}")
+            ok, reason = self.ctrl.wait_started(timeout=4.0)
+            if not ok:
+                self.ctrl.stop()
+                messagebox.showerror("启动失败", f"服务器未能启动：\n{reason}")
+                self._refresh_status_ui()
+                return
+
             self._refresh_status_ui()
-            return
-
-        self._refresh_status_ui()
-        if host == "dual":
-            self.url_var.set(f"http://{self.lan_ip}:{port}  /  http://[::1]:{port}")
-        else:
-            show_host = self.lan_ip if host == "0.0.0.0" else "[::1]" if host == "::" else host
-            self.url_var.set(f"http://{show_host}:{port}")
-        self.local_url_var.set(f"http://127.0.0.1:{port}")
+            if host == "dual":
+                self.url_var.set(f"http://{self.lan_ip}:{port}  /  http://[::1]:{port}")
+            else:
+                show_host = self.lan_ip if host == "0.0.0.0" else "[::1]" if host == "::" else host
+                self.url_var.set(f"http://{show_host}:{port}")
+            self.local_url_var.set(f"http://127.0.0.1:{port}")
+        except Exception:
+            detail = traceback.format_exc()
+            self._log_runtime_error("Start server exception", detail)
+            messagebox.showerror("启动失败", f"发生未处理异常，详情已写入：\n{RUNTIME_LOG_FILE}")
 
     def stop_server(self):
         self.ctrl.stop()
