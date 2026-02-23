@@ -7,6 +7,7 @@ import socket
 import sys
 import threading
 import time
+from contextlib import closing
 import tkinter as tk
 import traceback
 from functools import partial
@@ -26,6 +27,73 @@ CFG_DIR.mkdir(parents=True, exist_ok=True)
 CFG_FILE = CFG_DIR / "config.json"
 LOG_FILE = CFG_DIR / "access.log"
 RUNTIME_LOG_FILE = CFG_DIR / "runtime.log"
+SINGLE_INSTANCE_HOST = "127.0.0.1"
+SINGLE_INSTANCE_PORT = 45873
+SINGLE_INSTANCE_TOKEN = "WEBFS_SHOW_WINDOW_V1"
+
+
+class SingleInstanceBridge:
+    def __init__(self, on_show):
+        self.on_show = on_show
+        self.sock: socket.socket | None = None
+        self._thread: threading.Thread | None = None
+        self._stopped = threading.Event()
+
+    @staticmethod
+    def notify_existing_instance() -> bool:
+        try:
+            with closing(socket.create_connection((SINGLE_INSTANCE_HOST, SINGLE_INSTANCE_PORT), timeout=1.0)) as s:
+                s.sendall((SINGLE_INSTANCE_TOKEN + "\n").encode("utf-8"))
+            return True
+        except OSError:
+            return False
+
+    def start(self) -> bool:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((SINGLE_INSTANCE_HOST, SINGLE_INSTANCE_PORT))
+            sock.listen(5)
+            sock.settimeout(0.5)
+        except OSError:
+            sock.close()
+            return False
+
+        self.sock = sock
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+        return True
+
+    def _serve(self):
+        if not self.sock:
+            return
+        while not self._stopped.is_set():
+            try:
+                conn, _ = self.sock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+
+            with conn:
+                try:
+                    data = conn.recv(128).decode("utf-8", errors="ignore").strip()
+                except OSError:
+                    data = ""
+                if data == SINGLE_INSTANCE_TOKEN:
+                    try:
+                        self.on_show()
+                    except Exception:
+                        pass
+
+    def stop(self):
+        self._stopped.set()
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+            self.sock = None
 
 
 def get_lan_ip() -> str:
@@ -147,8 +215,9 @@ class ServerController:
 
 
 class AppUI(tk.Tk):
-    def __init__(self):
+    def __init__(self, single_instance_bridge: SingleInstanceBridge | None = None):
         super().__init__()
+        self.single_instance_bridge = single_instance_bridge
         self.title("Web 文件服务器（局域网共享）")
         self.geometry("1180x740")
         self.minsize(1080, 680)
@@ -257,7 +326,7 @@ class AppUI(tk.Tk):
             pystray.MenuItem("启动服务器", partial(self._tray_action, "start")),
             pystray.MenuItem("停止服务器", partial(self._tray_action, "stop")),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("打开界面", partial(self._tray_action, "show")),
+            pystray.MenuItem("打开界面", partial(self._tray_action, "show"), default=True),
             pystray.MenuItem("退出程序", partial(self._tray_action, "exit")),
         )
         self._tray_icon = pystray.Icon("WebFS", self._make_tray_image(), "WebFS", menu)
@@ -279,8 +348,10 @@ class AppUI(tk.Tk):
 
     def show_window(self):
         self.deiconify()
+        self.attributes("-topmost", True)
         self.lift()
         self.focus_force()
+        self.after(250, lambda: self.attributes("-topmost", False))
 
     def _log_runtime_error(self, title: str, detail: str) -> None:
         try:
@@ -1033,6 +1104,8 @@ class AppUI(tk.Tk):
             self.ctrl.stop()
         except Exception:
             pass
+        if self.single_instance_bridge is not None:
+            self.single_instance_bridge.stop()
         self.destroy()
 
 
@@ -1071,4 +1144,15 @@ if __name__ == "__main__":
         import multiprocessing
 
         multiprocessing.freeze_support()
-    AppUI().mainloop()
+
+    if SingleInstanceBridge.notify_existing_instance():
+        sys.exit(0)
+
+    app_ui: AppUI | None = None
+    bridge = SingleInstanceBridge(lambda: app_ui.after(0, app_ui.show_window) if app_ui else None)
+    if not bridge.start():
+        if SingleInstanceBridge.notify_existing_instance():
+            sys.exit(0)
+
+    app_ui = AppUI(single_instance_bridge=bridge)
+    app_ui.mainloop()
