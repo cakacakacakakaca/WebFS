@@ -229,7 +229,7 @@ class AppUI(tk.Tk):
         ttk.Label(row2, text="端口：").pack(side="left")
         ttk.Entry(row2, textvariable=self.port_var, width=10).pack(side="left", padx=8)
         ttk.Label(row2, text="账户/网络权限请在“账户与权限”页配置", foreground="#666").pack(side="left", padx=8)
-        ttk.Label(row2, text="（IPv4/IPv6 开关在下方“账户与权限管理”中设置）", foreground="#666").pack(side="left", padx=8)
+        
 
         row3 = ttk.Frame(lf)
         row3.pack(fill="x", pady=(8, 6))
@@ -238,21 +238,9 @@ class AppUI(tk.Tk):
         self.btn_start.pack(side="left")
         self.btn_stop.pack(side="left", padx=10)
 
-        sec = ttk.Labelframe(frm, text="账户与权限管理")
-        sec.pack(fill="x", pady=(12, 0))
-        net = ttk.Frame(sec)
-        net.pack(fill="x", pady=4)
-        ttk.Label(net, text="网络访问：").pack(side="left")
-        ttk.Checkbutton(net, text="允许 IPv4", variable=self.allow_ipv4).pack(side="left", padx=6)
-        ttk.Checkbutton(net, text="允许 IPv6", variable=self.allow_ipv6).pack(side="left", padx=6)
+        
 
-        acc = ttk.Frame(sec)
-        acc.pack(fill="x", pady=4)
-        ttk.Button(acc, text="管理员账户…", command=self.manage_admins).pack(side="left")
-        ttk.Button(acc, text="普通账户…", command=self.manage_users).pack(side="left", padx=8)
-        ttk.Label(acc, text="游客模式：").pack(side="left", padx=(20,6))
-        ttk.Combobox(acc, textvariable=self.guest_mode_var, state="readonly", width=16,
-                     values=["debug", "browse_only", "disabled"]).pack(side="left")
+       
 
         tips = ttk.Labelframe(frm, text="提示")
         tips.pack(fill="x", pady=(12, 0))
