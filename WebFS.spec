@@ -26,6 +26,7 @@ a = Analysis(
         'uvicorn.protocols.http.auto',
         'uvicorn.lifespan',
         'uvicorn.lifespan.on',
+        'pystray._win32',
     ],
     hookspath=[],
     hooksconfig={},
